@@ -282,6 +282,7 @@ rcv_headers_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
     DependencyTree::Node *node = cstate.dependency_tree->find(stream_id);
     if (node != nullptr) {
       stream->priority_node = node;
+      node->t               = stream;
     } else {
       DebugHttp2Stream(cstate.ua_session, stream_id, "PRIORITY - dep: %d, weight: %d, excl: %d, tree size: %d",
                        params.priority.stream_dependency, params.priority.weight, params.priority.exclusive_flag,
@@ -317,7 +318,8 @@ rcv_headers_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
       empty_request = true;
     }
 
-    Http2ErrorCode result = stream->decode_header_blocks(*cstate.local_hpack_handle);
+    Http2ErrorCode result =
+      stream->decode_header_blocks(*cstate.local_hpack_handle, cstate.server_settings.get(HTTP2_SETTINGS_HEADER_TABLE_SIZE));
 
     if (result != Http2ErrorCode::HTTP2_ERROR_NO_ERROR) {
       if (result == Http2ErrorCode::HTTP2_ERROR_COMPRESSION_ERROR) {
@@ -790,7 +792,8 @@ rcv_continuation_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
                         "continuation no state change");
     }
 
-    Http2ErrorCode result = stream->decode_header_blocks(*cstate.local_hpack_handle);
+    Http2ErrorCode result =
+      stream->decode_header_blocks(*cstate.local_hpack_handle, cstate.server_settings.get(HTTP2_SETTINGS_HEADER_TABLE_SIZE));
 
     if (result != Http2ErrorCode::HTTP2_ERROR_NO_ERROR) {
       if (result == Http2ErrorCode::HTTP2_ERROR_COMPRESSION_ERROR) {
@@ -1001,7 +1004,7 @@ Http2ConnectionState::create_stream(Http2StreamId new_id, Http2Error &error)
   ink_assert(nullptr != new_stream);
   ink_assert(!stream_list.in(new_stream));
 
-  stream_list.push(new_stream);
+  stream_list.enqueue(new_stream);
   if (client_streamid) {
     latest_streamid_in = new_id;
     ink_assert(client_streams_in_count < UINT32_MAX);
@@ -1027,7 +1030,7 @@ Http2ConnectionState::create_stream(Http2StreamId new_id, Http2Error &error)
 Http2Stream *
 Http2ConnectionState::find_stream(Http2StreamId id) const
 {
-  for (Http2Stream *s = stream_list.head; s; s = s->link.next) {
+  for (Http2Stream *s = stream_list.head; s; s = static_cast<Http2Stream *>(s->link.next)) {
     if (s->get_id() == id) {
       return s;
     }
@@ -1042,7 +1045,7 @@ Http2ConnectionState::restart_streams()
   Http2Stream *s = stream_list.head;
 
   while (s) {
-    Http2Stream *next = s->link.next;
+    Http2Stream *next = static_cast<Http2Stream *>(s->link.next);
     if (!s->is_closed() && s->get_state() == Http2StreamState::HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE &&
         min(this->client_rwnd, s->client_rwnd) > 0) {
       s->send_response_body();
@@ -1057,7 +1060,7 @@ Http2ConnectionState::cleanup_streams()
 {
   Http2Stream *s = stream_list.head;
   while (s) {
-    Http2Stream *next = s->link.next;
+    Http2Stream *next = static_cast<Http2Stream *>(s->link.next);
     this->delete_stream(s);
     ink_assert(s != next);
     s = next;
@@ -1146,7 +1149,7 @@ void
 Http2ConnectionState::update_initial_rwnd(Http2WindowSize new_size)
 {
   // Update stream level window sizes
-  for (Http2Stream *s = stream_list.head; s; s = s->link.next) {
+  for (Http2Stream *s = stream_list.head; s; s = static_cast<Http2Stream *>(s->link.next)) {
     s->client_rwnd = new_size - (client_settings.get(HTTP2_SETTINGS_INITIAL_WINDOW_SIZE) - s->client_rwnd);
   }
 }
@@ -1484,6 +1487,7 @@ Http2ConnectionState::send_push_promise_frame(Http2Stream *stream, URL &url)
   Http2Error error(Http2ErrorClass::HTTP2_ERROR_CLASS_NONE);
   stream = this->create_stream(id, error);
   if (!stream) {
+    h2_hdr.destroy();
     return;
   }
   if (Http2::stream_priority_enabled) {

@@ -53,9 +53,6 @@
 
 #include "P_RecLocal.h"
 
-#include "bindings/bindings.h"
-#include "bindings/metrics.h"
-
 #include "metrics.h"
 
 #if TS_USE_POSIX_CAP
@@ -724,6 +721,7 @@ main(int argc, const char **argv)
 
   binding = new BindingInstance;
   metrics_binding_initialize(*binding);
+  metrics_binding_configure(*binding);
 
   int sleep_time = 0; // sleep_time given in sec
 
@@ -737,6 +735,8 @@ main(int argc, const char **argv)
 
       binding = new BindingInstance;
       metrics_binding_initialize(*binding);
+      metrics_binding_configure(*binding);
+
       binding_version = metrics_version;
     }
 
@@ -1021,6 +1021,8 @@ fileUpdated(char *fname, bool incVersion)
     mgmt_log("[fileUpdated] metrics.config file has been modified\n");
   } else if (strcmp(fname, "congestion.config") == 0) {
     lmgmt->signalFileChange("proxy.config.http.congestion_control.filename");
+  } else if (strcmp(fname, "proxy.config.ssl.server.ticket_key.filename") == 0) {
+    lmgmt->signalFileChange("proxy.config.ssl.server.ticket_key.filename");
   } else {
     mgmt_log("[fileUpdated] Unknown config file updated '%s'\n", fname);
   }

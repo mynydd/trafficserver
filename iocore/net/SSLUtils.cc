@@ -139,14 +139,16 @@ static InkHashTable *ssl_cipher_name_table = nullptr;
  * may use pthreads and openssl without confusing us here. (TS-2271).
  */
 
+#if !defined(CRYPTO_THREADID_set_callback)
 static void
 SSL_pthreads_thread_id(CRYPTO_THREADID *id)
 {
   CRYPTO_THREADID_set_numeric(id, (unsigned long)pthread_self());
 }
+#endif
 
 // The locking callback goes away with openssl 1.1 and CRYPTO_LOCK is on longer defined
-#ifdef CRYPTO_LOCK
+#if defined(CRYPTO_LOCK) && !defined(CRYPTO_set_locking_callback)
 static void
 SSL_locking_callback(int mode, int type, const char *file, int line)
 {
@@ -863,7 +865,9 @@ SSLInitializeLibrary()
     }
 
     CRYPTO_set_locking_callback(SSL_locking_callback);
+#if !defined(CRYPTO_THREADID_set_callback)
     CRYPTO_THREADID_set_callback(SSL_pthreads_thread_id);
+#endif
     CRYPTO_set_dynlock_create_callback(ssl_dyn_create_callback);
     CRYPTO_set_dynlock_lock_callback(ssl_dyn_lock_callback);
     CRYPTO_set_dynlock_destroy_callback(ssl_dyn_destroy_callback);
@@ -1344,7 +1348,7 @@ asn1_strdup(ASN1_STRING *s)
   ink_assert(ASN1_STRING_type(s) == V_ASN1_IA5STRING || ASN1_STRING_type(s) == V_ASN1_UTF8STRING ||
              ASN1_STRING_type(s) == V_ASN1_PRINTABLESTRING || ASN1_STRING_type(s) == V_ASN1_T61STRING);
 
-  return ats_strndup((const char *)ASN1_STRING_data(s), ASN1_STRING_length(s));
+  return ats_strndup((const char *)ASN1_STRING_get0_data(s), ASN1_STRING_length(s));
 }
 
 // Given a certificate and it's corresponding SSL_CTX context, insert hash
@@ -2053,7 +2057,7 @@ ssl_callback_session_ticket(SSL *ssl, unsigned char *keyname, unsigned char *iv,
                             int enc)
 {
   SSLCertificateConfig::scoped_config lookup;
-  SSLConfig::scoped_config params;
+  SSLTicketKeyConfig::scoped_config params;
   SSLNetVConnection *netvc = SSLNetVCAccess(ssl);
 
   // Get the IP address to look up the keyblock
@@ -2073,7 +2077,7 @@ ssl_callback_session_ticket(SSL *ssl, unsigned char *keyname, unsigned char *iv,
   if (enc == 1) {
     const ssl_ticket_key_t &most_recent_key = keyblock->keys[0];
     memcpy(keyname, most_recent_key.key_name, sizeof(most_recent_key.key_name));
-    RAND_pseudo_bytes(iv, EVP_MAX_IV_LENGTH);
+    RAND_bytes(iv, EVP_MAX_IV_LENGTH);
     EVP_EncryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), nullptr, most_recent_key.aes_key, iv);
     HMAC_Init_ex(hctx, most_recent_key.hmac_secret, sizeof(most_recent_key.hmac_secret), evp_md_func, nullptr);
 

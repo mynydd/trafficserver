@@ -700,7 +700,7 @@ LocalManager::sendMgmtMsgToProcesses(MgmtMessageHdr *mh)
   case MGMT_EVENT_CONFIG_FILE_UPDATE:
   case MGMT_EVENT_CONFIG_FILE_UPDATE_NO_INC_VERSION:
     bool found;
-    char *fname;
+    char *fname = nullptr;
     Rollback *rb;
     char *data_raw;
 
@@ -714,9 +714,11 @@ LocalManager::sendMgmtMsgToProcesses(MgmtMessageHdr *mh)
       mgmt_log("[LocalManager:sendMgmtMsgToProcesses] Unknown file change: '%s'\n", data_raw);
     }
     ink_assert(found);
-    if (!(configFiles && configFiles->getRollbackObj(fname, &rb)) &&
+
+    if (!(fname && configFiles && configFiles->getRollbackObj(fname, &rb)) &&
         (strcmp(data_raw, "proxy.config.cluster.cluster_configuration") != 0) &&
-        (strcmp(data_raw, "proxy.config.body_factory.template_sets_dir") != 0)) {
+        (strcmp(data_raw, "proxy.config.body_factory.template_sets_dir") != 0) &&
+        (strcmp(data_raw, "proxy.config.ssl.server.ticket_key.filename") != 0)) {
       mgmt_fatal(0, "[LocalManager::sendMgmtMsgToProcesses] "
                     "Invalid 'data_raw' for MGMT_EVENT_CONFIG_FILE_UPDATE\n");
     }
@@ -854,7 +856,7 @@ LocalManager::processEventQueue()
         ink_assert(enqueue(mgmt_event_queue, mh));
         return;
       }
-      Debug("lm", "[TrafficManager] ==> Sending signal event '%d' payload=%d", mh->msg_id, mh->data_len);
+      Debug("lm", "[TrafficManager] ==> Sending signal event '%d' %s payload=%d", mh->msg_id, data_raw, mh->data_len);
       lmgmt->sendMgmtMsgToProcesses(mh);
     }
     ats_free(mh);

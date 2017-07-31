@@ -1558,9 +1558,6 @@ HttpSM::state_api_callout(int event, void *data)
   api_timer     = 0;
   switch (api_next) {
   case API_RETURN_CONTINUE:
-    if (t_state.api_next_action == HttpTransact::SM_ACTION_API_SEND_RESPONSE_HDR) {
-      do_redirect();
-    }
     handle_api_return();
     break;
   case API_RETURN_DEFERED_CLOSE:
@@ -1611,11 +1608,13 @@ HttpSM::handle_api_return()
   case HttpTransact::SM_ACTION_API_POST_REMAP:
   case HttpTransact::SM_ACTION_API_READ_REQUEST_HDR:
   case HttpTransact::SM_ACTION_API_OS_DNS:
-  case HttpTransact::SM_ACTION_API_READ_CACHE_HDR:
   case HttpTransact::SM_ACTION_API_READ_RESPONSE_HDR:
+    call_transact_and_set_next_state(nullptr);
+    return;
+
   case HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE:
-    if (t_state.api_next_action == HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE && t_state.api_cleanup_cache_read &&
-        t_state.api_update_cached_object != HttpTransact::UPDATE_CACHED_OBJECT_PREPARE) {
+  case HttpTransact::SM_ACTION_API_READ_CACHE_HDR:
+    if (t_state.api_cleanup_cache_read && t_state.api_update_cached_object != HttpTransact::UPDATE_CACHED_OBJECT_PREPARE) {
       t_state.api_cleanup_cache_read = false;
       t_state.cache_info.object_read = nullptr;
       t_state.request_sent_time      = UNDEFINED_TIME;
@@ -1623,6 +1622,7 @@ HttpSM::handle_api_return()
       cache_sm.close_read();
       transform_cache_sm.close_read();
     }
+
     call_transact_and_set_next_state(nullptr);
     return;
   case HttpTransact::SM_ACTION_API_SEND_REQUEST_HDR:
@@ -1632,6 +1632,16 @@ HttpSM::handle_api_return()
     // Set back the inactivity timeout
     if (ua_session) {
       ua_session->set_inactivity_timeout(HRTIME_SECONDS(t_state.txn_conf->transaction_no_activity_timeout_in));
+    }
+
+    // We only follow 3xx when redirect_in_process == false. Otherwise the redirection has already been launched (in
+    // SM_ACTION_SERVE_FROM_CACHE or SM_ACTION_SERVER_READ).redirect_in_process is set before this logic if we need more direction.
+    // This redirection is only used with the build_error_reponse. Then, the redirection_tries will be increased by
+    // state_read_server_reponse_header and never get into this logic again.
+    if (enable_redirection && !t_state.redirect_info.redirect_in_process && is_redirect_required() &&
+        (redirection_tries <= t_state.txn_conf->number_of_redirections)) {
+      ++redirection_tries;
+      do_redirect();
     }
     // we have further processing to do
     //  based on what t_state.next_action is
@@ -1972,7 +1982,7 @@ HttpSM::state_read_server_response_header(int event, void *data)
     t_state.api_next_action       = HttpTransact::SM_ACTION_API_READ_RESPONSE_HDR;
 
     // if exceeded limit deallocate postdata buffers and disable redirection
-    if (enable_redirection && (redirection_tries < t_state.txn_conf->number_of_redirections)) {
+    if (enable_redirection && (redirection_tries <= t_state.txn_conf->number_of_redirections)) {
       ++redirection_tries;
     } else {
       tunnel.deallocate_redirect_postdata_buffers();
@@ -3499,7 +3509,7 @@ HttpSM::tunnel_handler_post_ua(int event, HttpTunnelProducer *p)
 {
   STATE_ENTER(&HttpSM::tunnel_handler_post_ua, event);
   client_request_body_bytes = p->init_bytes_done + p->bytes_read;
-  int64_t alloc_index, nbytes;
+  int64_t nbytes, buf_size;
   IOBufferReader *buf_start;
 
   switch (event) {
@@ -3521,7 +3531,7 @@ HttpSM::tunnel_handler_post_ua(int event, HttpTunnelProducer *p)
       }
 
       // send back 408 request timeout
-      alloc_index = buffer_size_to_index(len_408_request_timeout_response + t_state.internal_msg_buffer_size);
+      buf_size = index_to_buffer_size(HTTP_HEADER_BUFFER_SIZE_INDEX) + t_state.internal_msg_buffer_size;
       if (ua_entry->write_buffer) {
         if (t_state.hdr_info.client_request.m_100_continue_required) {
           ink_assert(ua_entry->write_vio && !ua_entry->write_vio->ntodo());
@@ -3529,13 +3539,28 @@ HttpSM::tunnel_handler_post_ua(int event, HttpTunnelProducer *p)
         free_MIOBuffer(ua_entry->write_buffer);
         ua_entry->write_buffer = nullptr;
       }
-      ua_entry->write_buffer = new_MIOBuffer(alloc_index);
+      ua_entry->write_buffer = new_MIOBuffer(buffer_size_to_index(buf_size));
       buf_start              = ua_entry->write_buffer->alloc_reader();
 
       DebugSM("http_tunnel", "send 408 response to client to vc %p, tunnel vc %p", ua_session->get_netvc(), p->vc);
 
-      nbytes = ua_entry->write_buffer->write(str_408_request_timeout_response, len_408_request_timeout_response);
-      nbytes += ua_entry->write_buffer->write(t_state.internal_msg_buffer, t_state.internal_msg_buffer_size);
+      if (t_state.internal_msg_buffer && t_state.internal_msg_buffer_size) {
+        client_response_hdr_bytes = write_response_header_into_buffer(&t_state.hdr_info.client_response, ua_entry->write_buffer);
+        nbytes                    = client_response_hdr_bytes + t_state.internal_msg_buffer_size;
+        if (t_state.internal_msg_buffer_fast_allocator_size < 0) {
+          ua_entry->write_buffer->append_xmalloced(t_state.internal_msg_buffer, t_state.internal_msg_buffer_size);
+        } else {
+          ua_entry->write_buffer->append_fast_allocated(t_state.internal_msg_buffer, t_state.internal_msg_buffer_size,
+                                                        t_state.internal_msg_buffer_fast_allocator_size);
+        }
+        // The IOBufferBlock will free the msg buffer when necessary so
+        //  eliminate our pointer to it
+        t_state.internal_msg_buffer      = nullptr;
+        t_state.internal_msg_buffer_size = 0;
+      } else {
+        client_response_hdr_bytes = nbytes =
+          ua_entry->write_buffer->write(str_408_request_timeout_response, len_408_request_timeout_response);
+      }
 
       // The HttpSM default handler still is HttpSM::state_request_wait_for_transform_read.
       // However, WRITE_COMPLETE/TIMEOUT/ERROR event should be managed/handled by tunnel_handler_post.
@@ -5096,22 +5121,28 @@ HttpSM::do_http_server_open(bool raw)
     connect_action_handle = sslNetProcessor.connect_re(this,                                 // state machine
                                                        &t_state.current.server->dst_addr.sa, // addr + port
                                                        &opt);
-  } else if (t_state.method != HTTP_WKSIDX_CONNECT) {
+  } else if (t_state.method != HTTP_WKSIDX_CONNECT && t_state.method != HTTP_WKSIDX_POST && t_state.method != HTTP_WKSIDX_PUT) {
     DebugSM("http", "calling netProcessor.connect_re");
     connect_action_handle = netProcessor.connect_re(this,                                 // state machine
                                                     &t_state.current.server->dst_addr.sa, // addr + port
                                                     &opt);
   } else {
-    // CONNECT method
+    // The request transform would be applied to POST and/or PUT request.
+    // The server_vc should be established (writeable) before request transform start.
+    // The CheckConnect is created by connect_s,
+    //   It will callback NET_EVENT_OPEN to HttpSM if server_vc is WRITE_READY,
+    //   Otherwise NET_EVENT_OPEN_FAILED is callbacked.
     MgmtInt connect_timeout;
 
-    ink_assert(t_state.method == HTTP_WKSIDX_CONNECT);
+    ink_assert(t_state.method == HTTP_WKSIDX_CONNECT || t_state.method == HTTP_WKSIDX_POST || t_state.method == HTTP_WKSIDX_PUT);
 
     // Set the inactivity timeout to the connect timeout so that we
     // we fail this server if it doesn't start sending the response
     // header
-    if (t_state.current.server == &t_state.parent_info) {
-      connect_timeout = t_state.http_config_param->parent_connect_timeout;
+    if (t_state.method == HTTP_WKSIDX_POST || t_state.method == HTTP_WKSIDX_PUT) {
+      connect_timeout = t_state.txn_conf->post_connect_attempts_timeout;
+    } else if (t_state.current.server == &t_state.parent_info) {
+      connect_timeout = t_state.txn_conf->parent_connect_timeout;
     } else if (t_state.pCongestionEntry != nullptr) {
       connect_timeout = t_state.pCongestionEntry->connect_timeout();
     } else {
@@ -5463,12 +5494,15 @@ HttpSM::handle_http_server_open()
   //          server session's first transaction.
   if (nullptr != server_session) {
     NetVConnection *vc = server_session->get_netvc();
+
     if (vc != nullptr && (vc->options.sockopt_flags != t_state.txn_conf->sock_option_flag_out ||
                           vc->options.packet_mark != t_state.txn_conf->sock_packet_mark_out ||
-                          vc->options.packet_tos != t_state.txn_conf->sock_packet_tos_out)) {
-      vc->options.sockopt_flags = t_state.txn_conf->sock_option_flag_out;
-      vc->options.packet_mark   = t_state.txn_conf->sock_packet_mark_out;
-      vc->options.packet_tos    = t_state.txn_conf->sock_packet_tos_out;
+                          vc->options.packet_tos != t_state.txn_conf->sock_packet_tos_out ||
+                          vc->options.clientVerificationFlag != t_state.txn_conf->ssl_client_verify_server)) {
+      vc->options.sockopt_flags          = t_state.txn_conf->sock_option_flag_out;
+      vc->options.packet_mark            = t_state.txn_conf->sock_packet_mark_out;
+      vc->options.packet_tos             = t_state.txn_conf->sock_packet_tos_out;
+      vc->options.clientVerificationFlag = t_state.txn_conf->ssl_client_verify_server;
       vc->apply_options();
     }
   }
@@ -6012,7 +6046,7 @@ HttpSM::attach_server_session(HttpServerSession *s)
   if (t_state.method == HTTP_WKSIDX_POST || t_state.method == HTTP_WKSIDX_PUT) {
     connect_timeout = t_state.txn_conf->post_connect_attempts_timeout;
   } else if (t_state.current.server == &t_state.parent_info) {
-    connect_timeout = t_state.http_config_param->parent_connect_timeout;
+    connect_timeout = t_state.txn_conf->parent_connect_timeout;
   } else {
     connect_timeout = t_state.txn_conf->connect_attempts_timeout;
   }
@@ -6271,10 +6305,10 @@ HttpSM::setup_100_continue_transfer()
 void
 HttpSM::setup_error_transfer()
 {
-  if (t_state.internal_msg_buffer) {
+  if (t_state.internal_msg_buffer || is_response_body_precluded(t_state.http_return_code)) {
     // Since we need to send the error message, call the API
     //   function
-    ink_assert(t_state.internal_msg_buffer_size > 0);
+    ink_assert(t_state.internal_msg_buffer_size > 0 || is_response_body_precluded(t_state.http_return_code));
     t_state.api_next_action = HttpTransact::SM_ACTION_API_SEND_RESPONSE_HDR;
     do_api_callout();
   } else {
@@ -7758,7 +7792,7 @@ void
 HttpSM::do_redirect()
 {
   DebugSM("http_redirect", "[HttpSM::do_redirect]");
-  if (!enable_redirection || redirection_tries >= t_state.txn_conf->number_of_redirections) {
+  if (!enable_redirection || redirection_tries > t_state.txn_conf->number_of_redirections) {
     tunnel.deallocate_redirect_postdata_buffers();
     return;
   }

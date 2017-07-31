@@ -413,6 +413,7 @@ struct OverridableHttpConfigParams {
       parent_failures_update_hostdb(0),
       cache_open_write_fail_action(0),
       post_check_content_length_enabled(1),
+      ssl_client_verify_server(0),
       redirection_enabled(0),
       redirect_use_orig_cache_key(0),
       number_of_redirections(1),
@@ -448,6 +449,10 @@ struct OverridableHttpConfigParams {
       connect_attempts_timeout(30),
       post_connect_attempts_timeout(1800),
       parent_connect_attempts(4),
+      parent_retry_time(300),
+      parent_fail_threshold(10),
+      per_parent_connect_attempts(2),
+      parent_connect_timeout(30),
       down_server_timeout(300),
       client_abort_threshold(10),
       freshness_fuzz_time(240),
@@ -573,6 +578,11 @@ struct OverridableHttpConfigParams {
   ////////////////////////
   MgmtByte post_check_content_length_enabled;
 
+  /////////////////////////////
+  // server verification mode//
+  /////////////////////////////
+  MgmtByte ssl_client_verify_server;
+
   //##############################################################################
   //#
   //# Redirection
@@ -645,7 +655,15 @@ struct OverridableHttpConfigParams {
   MgmtInt connect_attempts_rr_retries;
   MgmtInt connect_attempts_timeout;
   MgmtInt post_connect_attempts_timeout;
+
+  ////////////////////////////////////
+  // parent proxy connect attempts //
+  ///////////////////////////////////
   MgmtInt parent_connect_attempts;
+  MgmtInt parent_retry_time;
+  MgmtInt parent_fail_threshold;
+  MgmtInt per_parent_connect_attempts;
+  MgmtInt parent_connect_timeout;
 
   MgmtInt down_server_timeout;
   MgmtInt client_abort_threshold;
@@ -735,12 +753,6 @@ public:
   int32_t cluster_time_delta;
 
   MgmtInt accept_no_activity_timeout;
-
-  ////////////////////////////////////
-  // origin server connect attempts //
-  ////////////////////////////////////
-  MgmtInt per_parent_connect_attempts;
-  MgmtInt parent_connect_timeout;
 
   ///////////////////////////////////////////////////////////////////
   // Privacy: fields which are removed from the user agent request //
@@ -881,8 +893,6 @@ inline HttpConfigParams::HttpConfigParams()
     proxy_response_via_string_len(0),
     cluster_time_delta(0),
     accept_no_activity_timeout(120),
-    per_parent_connect_attempts(2),
-    parent_connect_timeout(30),
     anonymize_other_header_list(NULL),
     cache_vary_default_text(NULL),
     cache_vary_default_images(NULL),
