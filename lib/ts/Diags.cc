@@ -43,6 +43,8 @@
 #include "ts/ink_hrtime.h"
 #include "ts/ink_thread.h"
 #include "ts/Diags.h"
+#include <sys/time.h>
+#include <time.h>
 
 int diags_on_for_plugins          = 0;
 bool DiagsConfigState::enabled[2] = {false, false};
@@ -250,7 +252,7 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
   *end_of_format = NUL;
 
   // add the thread id
-  end_of_format += snprintf(end_of_format, sizeof(format_buf), "{0x%" PRIx64 "} ", (uint64_t)ink_thread_self());
+  end_of_format += snprintf(end_of_format, sizeof(format_buf), "{0x%016" PRIx64 "} ", (uint64_t)ink_thread_self());
 
   //////////////////////////////////////
   // start with the diag level prefix //
@@ -396,8 +398,22 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
       priority = LOG_NOTICE;
       break;
     }
+
+    // add the date and time (with milliseconds) to the output
+
+    struct timeval tv;
+    struct tm tmValue;
+
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &tmValue);
+
+    char timeBuffer[30];
+    snprintf(timeBuffer, sizeof(timeBuffer), "%02d/%02d/%02d %02d:%02d:%02d.%06ld",
+        tmValue.tm_mday, tmValue.tm_mon + 1, tmValue.tm_year + 1900, tmValue.tm_hour, tmValue.tm_min, tmValue.tm_sec, tv.tv_usec);
+
     vsnprintf(syslog_buffer, sizeof(syslog_buffer) - 1, format_buf, ap);
-    syslog(priority, "%s", syslog_buffer);
+
+    syslog(priority, "%s %s", timeBuffer, syslog_buffer);
   }
 
 #if defined(freebsd)
