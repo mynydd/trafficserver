@@ -229,19 +229,19 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
 {
   struct timeval tp;
   const char *s;
-  char *buffer, *d, timestamp_buf[48];
-  char format_buf[1024], format_buf_w_ts[1024], *end_of_format;
+  char *d, timestamp_buf[48];
+  char format_buf[1024], format_buf_w_prefix[1024], *end_of_format;
 
   ink_release_assert(diags_level < DiagsLevel_Count);
 
   ////////////////////////////////////////////////////////////////////////
   // there are 2 format buffers that hold a printf-style format string  //
-  // format_buf contains <prefix_string>: (<debug_tag>) <format_string> //
-  // and format_buf_w_ts has the same thing with a prepended timestamp. //
+  // format_buf contains <time> <threadid> (<debug_tag>) <format_string>           //
+  // and format_buf_w_prefix has the same thing with <prefix_string> after time. //
   ////////////////////////////////////////////////////////////////////////
 
   format_buf[0]      = NUL;
-  format_buf_w_ts[0] = NUL;
+  format_buf_w_prefix[0] = NUL;
 
   /////////////////////////////////////////////////////
   // format_buf holds 1024 characters, end_of_format //
@@ -251,16 +251,26 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
   end_of_format  = format_buf;
   *end_of_format = NUL;
 
+  tp               = ink_gettimeofday();
+  cftime_replacement(timestamp_buf, sizeof(timestamp_buf) - 1, "%d/%m/%Y %H:%M:%S", &tp.tv_sec);
+
+  end_of_format += snprintf(end_of_format, sizeof(format_buf) - 1, "%s.%06d", timestamp_buf, (int)(tp.tv_usec));
+
+  // store pointer to the end of time
+  const char *endtime = end_of_format;
+
+  *end_of_format++ = ' ';
+
   // add the thread id
   end_of_format += snprintf(end_of_format, sizeof(format_buf), "{0x%016" PRIx64 "} ", (uint64_t)ink_thread_self());
 
   //////////////////////////////////////
   // start with the diag level prefix //
   //////////////////////////////////////
-
+   
   for (s = level_name(diags_level); *s; *end_of_format++ = *s++)
     ;
-
+  
   *end_of_format++ = ':';
   *end_of_format++ = ' ';
 
@@ -298,31 +308,21 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
     ;
   *end_of_format++ = NUL;
 
-  //////////////////////////////////////////////////////////////////
-  // prepend timestamp into the timestamped version of the buffer //
-  //////////////////////////////////////////////////////////////////
 
-  tp               = ink_gettimeofday();
-  time_t cur_clock = (time_t)tp.tv_sec;
-  buffer           = ink_ctime_r(&cur_clock, timestamp_buf);
+  d = format_buf_w_prefix;
 
-  snprintf(&(timestamp_buf[19]), (sizeof(timestamp_buf) - 20), ".%03d", (int)(tp.tv_usec / 1000));
+  // copy the date/time into the prefix buffer
+  for (s = format_buf; s < endtime; *d++ = *s++)
+  ;
 
-  d    = format_buf_w_ts;
-  *d++ = '[';
-
-  for (int i = 4; buffer[i]; i++)
-    *d++ = buffer[i];
-
-  *d++ = ']';
   *d++ = ' ';
 
+  // copy the prefix into the prefix buffer
   for (int k = 0; prefix_str[k]; k++)
     *d++ = prefix_str[k];
-
-  *d++ = ' ';
-
-  for (s = format_buf; *s; *d++ = *s++)
+ 
+  // copy the rest of the non-prefix buffer into the prefix one 
+  for (s = endtime; *s; *d++ = *s++)
     ;
 
   *d++ = NUL;
@@ -336,7 +336,7 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
     if (diags_log && diags_log->m_fp) {
       va_list tmp;
       va_copy(tmp, ap);
-      vprintline(diags_log->m_fp, format_buf_w_ts, tmp);
+      vprintline(diags_log->m_fp, format_buf_w_prefix, tmp);
       va_end(tmp);
     }
   }
@@ -345,7 +345,7 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
     if (stdout_log && stdout_log->m_fp) {
       va_list tmp;
       va_copy(tmp, ap);
-      vprintline(stdout_log->m_fp, format_buf_w_ts, tmp);
+      vprintline(stdout_log->m_fp, format_buf_w_prefix, tmp);
       va_end(tmp);
     }
   }
@@ -354,7 +354,7 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
     if (stderr_log && stderr_log->m_fp) {
       va_list tmp;
       va_copy(tmp, ap);
-      vprintline(stderr_log->m_fp, format_buf_w_ts, tmp);
+      vprintline(stderr_log->m_fp, format_buf_w_prefix, tmp);
       va_end(tmp);
     }
   }
@@ -399,21 +399,9 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocat
       break;
     }
 
-    // add the date and time (with milliseconds) to the output
-
-    struct timeval tv;
-    struct tm tmValue;
-
-    gettimeofday(&tv, NULL);
-    localtime_r(&tv.tv_sec, &tmValue);
-
-    char timeBuffer[30];
-    snprintf(timeBuffer, sizeof(timeBuffer), "%02d/%02d/%02d %02d:%02d:%02d.%06ld",
-        tmValue.tm_mday, tmValue.tm_mon + 1, tmValue.tm_year + 1900, tmValue.tm_hour, tmValue.tm_min, tmValue.tm_sec, tv.tv_usec);
-
     vsnprintf(syslog_buffer, sizeof(syslog_buffer) - 1, format_buf, ap);
 
-    syslog(priority, "%s %s", timeBuffer, syslog_buffer);
+    syslog(priority, "%s", syslog_buffer);
   }
 
 #if defined(freebsd)
