@@ -9506,3 +9506,19 @@ TSRegisterProtocolTag(const char *tag)
 {
   return nullptr;
 }
+
+TSVConn
+TSHttpSsnVConnGet(TSHttpSsn ssnp)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void *)ssnp) == TS_SUCCESS);
+
+  ProxyClientSession *cs = reinterpret_cast<ProxyClientSession *>(ssnp);
+  if (cs == nullptr) {
+    return nullptr;
+  }
+
+  NetVConnection *vc = dynamic_cast<NetVConnection *>(cs->get_netvc());
+
+  return reinterpret_cast<TSVConn>(vc);
+}
+
