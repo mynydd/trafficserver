@@ -2442,6 +2442,11 @@ tsapi const char *TSHttpSsnClientProtocolStackContains(TSHttpSsn ssnp, char cons
 tsapi const char *TSNormalizedProtocolTag(char const *tag);
 tsapi const char *TSRegisterProtocolTag(char const *tag);
 
+/*
+ * Return TSVConn associated with the session or nullptr if no connection.
+ */
+tsapi TSVConn TSHttpSsnVConnGet(TSHttpSsn ssnp);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
