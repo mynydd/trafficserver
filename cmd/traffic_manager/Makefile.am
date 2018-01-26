@@ -20,7 +20,7 @@ check_PROGRAMS = test_metrics
 
 TESTS = $(check_PROGRAMS)
 
-AM_CPPFLAGS = \
+AM_CPPFLAGS += \
   $(LUAJIT_CPPFLAGS) \
   $(iocore_include_dirs) \
   -I$(abs_top_srcdir)/lib/records \
@@ -34,9 +34,7 @@ AM_CPPFLAGS = \
   -I$(abs_top_srcdir)/lib \
   -I$(abs_top_srcdir)/lib/luajit/src
 
-AM_LDFLAGS = \
-  @EXTRA_CXX_LDFLAGS@ \
-  @LIBTOOL_LINK_FLAGS@ \
+AM_LDFLAGS += \
   @OPENSSL_LDFLAGS@
 
 traffic_manager_SOURCES = \
@@ -52,9 +50,9 @@ traffic_manager_LDADD = \
   $(top_builddir)/mgmt/api/libmgmtapilocal.la \
   $(top_builddir)/mgmt/libmgmt_lm.la \
   $(top_builddir)/proxy/hdrs/libhdrs.a \
-  $(top_builddir)/lib/records/librecords_lm.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/lib/records/librecords_lm.a \
   $(top_builddir)/proxy/shared/libdiagsconfig.a
 
 AM_LDFLAGS += \
@@ -72,14 +70,6 @@ traffic_manager_LDADD +=\
   @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
   -lm
 
-# Must do it this way or the dependencies aren't detected.
-if BUILD_WCCP
-traffic_manager_LDADD += \
-  $(top_builddir)/lib/wccp/libwccp.a \
-  $(top_builddir)/lib/tsconfig/libtsconfig.la \
-  @OPENSSL_LIBS@
-endif
-
 test_metrics_SOURCES = test_metrics.cc metrics.cc WebOverview.cc
 test_metrics_LDADD = \
   $(top_builddir)/mgmt/libmgmt_lm.la \
@@ -89,6 +79,20 @@ test_metrics_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   @LIBTCL@ @LIBPCRE@
+
+# Must do it this way or the dependencies aren't detected.
+if BUILD_WCCP
+traffic_manager_LDADD += \
+  $(top_builddir)/lib/wccp/libwccp.a \
+  $(top_builddir)/lib/tsconfig/libtsconfig.la \
+  @OPENSSL_LIBS@
+
+test_metrics_LDADD += \
+  $(top_builddir)/lib/wccp/libwccp.a \
+  $(top_builddir)/lib/tsconfig/libtsconfig.la \
+  @OPENSSL_LIBS@
+
+endif
 
 include $(top_srcdir)/build/tidy.mk
 
