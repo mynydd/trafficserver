@@ -75,12 +75,12 @@ asf-distdir:
 
 asf-dist-sign: asf-dist
 	md5sum -b $(distdir).tar.bz2 >$(distdir).tar.bz2.md5
-	sha1sum -b $(distdir).tar.bz2 >$(distdir).tar.bz2.sha1
+	sha512sum -b $(distdir).tar.bz2 >$(distdir).tar.bz2.sha512
 	gpg --armor --output $(distdir).tar.bz2.asc  --detach-sig $(distdir).tar.bz2
 
 asf-dist-sign-rc: asf-dist-rc
 	md5sum -b $(distdir)-rc$(RC).tar.bz2 >$(distdir)-rc$(RC).tar.bz2.md5
-	sha1sum -b $(distdir)-rc$(RC).tar.bz2 >$(distdir)-rc$(RC).tar.bz2.sha1
+	sha512sum -b $(distdir)-rc$(RC).tar.bz2 >$(distdir)-rc$(RC).tar.bz2.sha512
 	gpg --armor --output $(distdir)-rc$(RC).tar.bz2.asc  --detach-sig $(distdir)-rc$(RC).tar.bz2
 
 release: asf-dist-sign
@@ -96,7 +96,9 @@ install-examples: examples
 	@cd example && $(MAKE) $(AM_MAKEFLAGS) install pkglibdir=$(pkglibexecdir)
 
 install-data-hook:
+if BUILD_DOCS
 	@cd doc && $(MAKE) $(AM_MAKEFLAGS) install-man
+endif
 
 rat:
 	java -jar $(top_srcdir)/ci/apache-rat-0.11-SNAPSHOT.jar -E $(top_srcdir)/ci/rat-regex.txt  -d $(top_srcdir)

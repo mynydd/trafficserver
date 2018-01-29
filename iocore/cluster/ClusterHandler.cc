@@ -2473,8 +2473,9 @@ ClusterHandler::mainClusterEvent(int event, Event *e)
     // Process deferred open_local requests
     /////////////////////////////////////////
     if (!on_stolen_thread) {
-      if (do_open_local_requests())
-        thread->signal_hook(thread);
+      if (do_open_local_requests()) {
+        thread->tail_cb->signalActivity();
+      }
     }
   }
 
@@ -2997,6 +2998,7 @@ ClusterHandler::process_write(ink_hrtime now, bool only_write_control_msgs)
           }
         }
       }
+    // fallthrough
     //////////////////
     default:
       //////////////////

@@ -446,6 +446,7 @@ ClusterState::doIO_read_event(int event, void *d)
     v->nbytes = v->ndone;
     // fall through
   }
+  // fallthrough
   case VC_EVENT_READ_COMPLETE: {
     bytes_xfered = v->ndone - last_ndone;
     if (bytes_xfered) {
@@ -871,6 +872,7 @@ ClusterHandler::startClusterEvent(int event, Event *e)
       {
         ink_release_assert(!"Invalid state [CLCON_INITIAL]");
       }
+    // fallthrough
     ////////////////////////////////////////////////////////////////////////////
     case ClusterHandler::CLCON_SEND_MSG:
       ////////////////////////////////////////////////////////////////////////////
@@ -1010,6 +1012,7 @@ ClusterHandler::startClusterEvent(int event, Event *e)
           cluster_connect_state = ClusterHandler::CLCON_CONN_BIND_CLEAR;
         }
       }
+    // fallthrough
 
     case ClusterHandler::CLCON_CONN_BIND_CLEAR: {
       UnixNetVConnection *vc = (UnixNetVConnection *)net_vc;
@@ -1067,6 +1070,7 @@ ClusterHandler::startClusterEvent(int event, Event *e)
         return EVENT_DONE;
       }
     }
+    // fallthrough
 
     case ClusterHandler::CLCON_CONN_BIND_OK: {
       int failed = 0;
@@ -1140,7 +1144,7 @@ ClusterHandler::startClusterEvent(int event, Event *e)
       //  external_incoming_control.
 
       int procs_online    = ink_number_of_processors();
-      int total_callbacks = min(procs_online, MAX_COMPLETION_CALLBACK_EVENTS);
+      int total_callbacks = std::min(procs_online, MAX_COMPLETION_CALLBACK_EVENTS);
       for (int n = 0; n < total_callbacks; ++n) {
         callout_cont[n]   = new ClusterCalloutContinuation(this);
         callout_events[n] = eventProcessor.schedule_every(callout_cont[n], COMPLETION_CALLBACK_PERIOD, ET_NET);
