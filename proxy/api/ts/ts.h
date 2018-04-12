@@ -1249,6 +1249,9 @@ tsapi int TSVConnIsSsl(TSVConn sslp);
 /* Get the VConn associated with the specified SSL connection.  */
 tsapi TSVConn TSGetVConnFromSsl(TSSslConnection sslConnection);
 
+/** Get the VConn associated with the transaction's server session. */
+tsapi TSVConn TSGetServerSessionVConn(TSHttpTxn txnp);
+
 /* --------------------------------------------------------------------------
    HTTP transactions */
 tsapi void TSHttpTxnHookAdd(TSHttpTxn txnp, TSHttpHookID id, TSCont contp);

@@ -9605,3 +9605,19 @@ TSVConn TSGetVConnFromSsl(TSSslConnection sslConnection)
   return ssl == nullptr ? nullptr : reinterpret_cast<TSVConn>(SSLNetVCAccess(ssl));
 }
 
+TSVConn TSGetServerSessionVConn(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  NetVConnection *vc = nullptr;
+  HttpSM *sm = reinterpret_cast<HttpSM *>(txnp);
+  if (sm != nullptr)
+  {
+    auto serverSession = sm->get_server_session();
+    if (serverSession != nullptr)
+    {
+      vc = serverSession->get_netvc();
+    }
+  }
+  return reinterpret_cast<TSVConn>(vc);
+}
+
