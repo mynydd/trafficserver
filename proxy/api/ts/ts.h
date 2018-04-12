@@ -1246,6 +1246,9 @@ int TSAcceptorIDGet(TSAcceptor acceptor);
 // Returns 1 if the sslp argument refers to a SSL connection
 tsapi int TSVConnIsSsl(TSVConn sslp);
 
+/* Get the VConn associated with the specified SSL connection.  */
+tsapi TSVConn TSGetVConnFromSsl(TSSslConnection sslConnection);
+
 /* --------------------------------------------------------------------------
    HTTP transactions */
 tsapi void TSHttpTxnHookAdd(TSHttpTxn txnp, TSHttpHookID id, TSCont contp);
