@@ -1055,7 +1055,9 @@ SSLNetVConnection::sslStartHandShake(int event, int &err)
       if (this->ssl != nullptr) {
         uint8_t clientVerify = this->options.clientVerificationFlag;
         int verifyValue      = clientVerify & 1 ? SSL_VERIFY_PEER : SSL_VERIFY_NONE;
-        SSL_set_verify(this->ssl, verifyValue, verify_callback);
+        int (*verificationFunc)(int, X509_STORE_CTX *);
+        verificationFunc = SSL_CTX_get_verify_callback(clientCTX);
+        SSL_set_verify(this->ssl, verifyValue, verificationFunc ? verificationFunc : verify_callback);
       }
 
       if (this->ssl == nullptr) {
