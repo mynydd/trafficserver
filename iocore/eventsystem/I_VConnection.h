@@ -367,6 +367,64 @@ public:
     return false;
   }
 
+  /**
+    Crude implementation for allowing supplementary data to be 
+    stashed on a VConnection and subsequently retrieved.
+  */
+
+  /**
+    Function type which encapsulates knowledge regard the actual 
+    data type of the stashed value and how to free it.
+  */
+  typedef void (*StashClearanceFunc)(void* stashed);
+
+private:
+  // The stashed data (if any)
+  void* stashed;
+
+  // Function responsible for freeing stashed data
+  StashClearanceFunc stashClearanceFunc;
+
+  /**
+    Free stashed data, if any.
+    The VConnection destructor calls this method.
+  */
+  void clearStashed()
+  {
+    if (stashed != nullptr)
+    {
+      if (stashClearanceFunc != nullptr)
+      {
+        stashClearanceFunc(stashed);
+        stashed = nullptr;
+        stashClearanceFunc = nullptr;
+      }
+    }
+  }
+
+public:
+
+  /**
+    Stash the specified data, replacing any currently 
+    stashed value. Delegate to the specified 
+    function the responsibility for subsequently 
+    freeing the data.
+  */
+  void stash(void *toBeStashed, StashClearanceFunc f)
+  {
+    clearStashed();
+    stashed = toBeStashed;
+    stashClearanceFunc = f;
+  }
+
+  /**
+    Obtain a copy of the pointer to the stashed data.
+    The VConnection instance continues to assume 
+    ownership of the stashed data and retains
+    responisibility for ultimately freeing it.
+  */
+  void* getStashed() { return stashed; }
+
 public:
   /**
     The error code from the last error.

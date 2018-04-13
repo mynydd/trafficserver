@@ -1724,6 +1724,24 @@ tsapi TSReturnCode TSVConnFdGet(TSVConn connp, int *fdp);
    Cache VConnections */
 tsapi int64_t TSVConnCacheObjectSizeGet(TSVConn connp);
 
+/**
+ Stash stuff on the VConn.
+ Replaces anything currently stashed.
+ The specified deletionFunc is used to release the resources represented by stuff.
+ The deletion function gets called for the stashed stuff when the VConnection is
+ destroyed or when there is another call to this function - i.e.whatever is stashed
+ replaces what was previously stashed.
+ */
+tsapi void TSStashInVConn(TSVConn conn, void *stuff, void(*deletionFunc)(void*));
+
+/**
+ Retrieve currently stashed value on the VConnection.
+ The value obtained by this function continues to be owned by the
+ VConnection - i.e. the VConnection continues to assume responsibility
+ for its later deletion.
+ */
+tsapi void TSGetStashedFromVConn(TSVConn conn, void **out);
+
 /* --------------------------------------------------------------------------
    Transformations */
 tsapi TSVConn TSTransformCreate(TSEventFunc event_funcp, TSHttpTxn txnp);

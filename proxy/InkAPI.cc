@@ -9621,3 +9621,15 @@ TSVConn TSGetServerSessionVConn(TSHttpTxn txnp)
   return reinterpret_cast<TSVConn>(vc);
 }
 
+void TSStashInVConn(TSVConn conn, void *stuff, void(*stuffDeletionFunc)(void*))
+{
+  VConnection *vConn = reinterpret_cast<VConnection*>(conn);
+  vConn->stash(stuff, stuffDeletionFunc);
+}
+
+void TSGetStashedFromVConn(TSVConn conn, void **out)
+{
+  VConnection *vConn = reinterpret_cast<VConnection*>(conn);
+  *out = vConn->getStashed();
+}
+
