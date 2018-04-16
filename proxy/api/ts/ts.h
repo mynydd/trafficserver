@@ -1318,6 +1318,9 @@ tsapi void TSHttpTxnClientIncomingPortSet(TSHttpTxn txnp, int port);
  */
 tsapi void *TSHttpSsnSSLConnectionGet(TSHttpSsn ssnp); // returns SSL *
 
+/** Get the outgoing VConn for the specified transaction. */
+tsapi TSVConn TSHttpTxnOutgoingVConn(TSHttpTxn txnp);
+
 /** Get client address for transaction @a txnp.
     Retrieves the socket address of the remote client that has
     connected to Traffic Server for transaction @a txnp. The
