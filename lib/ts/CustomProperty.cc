@@ -30,10 +30,7 @@ CustomProperties::~CustomProperties()
 void CustomProperties::add(const char *name, void *value, void(*destroyValue)(void*))
 {
   remove(name);
-  PropertyValue pv;
-  pv.m_value = value;
-  pv.m_destroyFunc = destroyValue;
-  m_properties.insert(std::make_pair(name, pv));
+  m_properties.insert(std::make_pair(name, PropertyValue(value, destroyValue)));
 }
 
 void CustomProperties::remove(const char *name)

@@ -23,7 +23,7 @@ library_includedir=$(includedir)/ts
 library_include_HEADERS = apidefs.h
 
 noinst_PROGRAMS = mkdfa CompileParseRules
-check_PROGRAMS = test_tsutil test_arena test_atomic test_freelist test_geometry test_List test_Map test_Vec test_X509HostnameValidator test_MemView test_tslib
+check_PROGRAMS = test_tsutil test_arena test_atomic test_freelist test_geometry test_CustomProperty test_List test_Map test_Vec test_X509HostnameValidator test_MemView test_tslib
 
 TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=suppression.txt
 
@@ -219,6 +219,7 @@ test_freelist_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_arena_SOURCES = test_arena.cc
 test_arena_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 
+test_CustomProperty_SOURCES = test_CustomProperty.cc
 test_List_SOURCES = test_List.cc
 test_Map_SOURCES = test_Map.cc
 test_Map_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
