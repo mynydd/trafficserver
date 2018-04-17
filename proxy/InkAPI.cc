@@ -9625,3 +9625,41 @@ TSVConn TSHttpTxnOutgoingVConn(TSHttpTxn txnp)
   return reinterpret_cast<TSVConn>(vc);
 }
 
+void TSCustomPropertyAdd(TSVConn connp, const char *name, void *data, TSCustomPropertyDestroyFunc funcp)
+{
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
+
+  NetVConnection *vc = (NetVConnection *)connp;
+
+  if (vc != nullptr)
+  {
+    vc->addCustomProperty(name, data, funcp);
+  }
+}
+
+void TSCustomPropertyRemove(TSVConn connp, const char *name)
+{
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
+
+  NetVConnection *vc = (NetVConnection *)connp;
+
+  if (vc != nullptr)
+  {
+    vc->removeCustomProperty(name);
+  }
+}
+
+TSCustomProperty TSCustomPropertyGet(TSVConn connp, const char *name)
+{
+  TSCustomProperty p = 0;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
+
+  NetVConnection *vc = (NetVConnection *)connp;
+
+  if (vc != nullptr)
+  {
+    p = reinterpret_cast<TSCustomProperty>(vc->getCustomProperty(name));
+  }
+
+  return p;
+}

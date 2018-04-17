@@ -56,6 +56,8 @@ libtsutil_la_SOURCES = \
   ConsistentHash.h \
   ContFlags.cc \
   ContFlags.h \
+  CustomProperty.cc \
+  CustomProperty.h \
   Diags.cc \
   Diags.h \
   SourceLocation.h \
