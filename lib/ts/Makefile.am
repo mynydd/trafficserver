@@ -220,6 +220,8 @@ test_arena_SOURCES = test_arena.cc
 test_arena_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 
 test_CustomProperty_SOURCES = test_CustomProperty.cc
+test_CustomProperty_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
+
 test_List_SOURCES = test_List.cc
 test_Map_SOURCES = test_Map.cc
 test_Map_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
