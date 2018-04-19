@@ -1543,6 +1543,7 @@ tsapi void TSHttpTxnDNSTimeoutSet(TSHttpTxn txnp, int timeout);
 tsapi void TSHttpTxnNoActivityTimeoutSet(TSHttpTxn txnp, int timeout);
 
 tsapi TSServerState TSHttpTxnServerStateGet(TSHttpTxn txnp);
+tsapi void TSHttpTxnServerStateSet(TSHttpTxn txnp, TSServerState s);
 
 /* --------------------------------------------------------------------------
    Transaction specific debugging control  */
