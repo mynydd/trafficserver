@@ -1189,7 +1189,7 @@ tsapi void *TSConfigDataGet(TSConfig configp);
 
 tsapi void TSCustomPropertyAdd(TSVConn connp, const char *name, void *data, TSCustomPropertyDestroyFunc funcp);
 tsapi void TSCustomPropertyRemove(TSVConn connp, const char *name);
-tsapi TSCustomProperty TSCustomPropertyGet(TSVConn connp, const char *name);
+tsapi void *TSCustomPropertyGet(TSVConn connp, const char *name);
 
 /* --------------------------------------------------------------------------
    Management */
@@ -1547,6 +1547,7 @@ tsapi void TSHttpTxnDNSTimeoutSet(TSHttpTxn txnp, int timeout);
 tsapi void TSHttpTxnNoActivityTimeoutSet(TSHttpTxn txnp, int timeout);
 
 tsapi TSServerState TSHttpTxnServerStateGet(TSHttpTxn txnp);
+tsapi void TSHttpTxnServerStateSet(TSHttpTxn txnp, TSServerState s);
 
 /* --------------------------------------------------------------------------
    Transaction specific debugging control  */

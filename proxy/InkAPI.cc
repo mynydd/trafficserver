@@ -6083,6 +6083,15 @@ TSHttpTxnServerStateGet(TSHttpTxn txnp)
 }
 
 void
+TSHttpTxnServerStateSet(TSHttpTxn txnp, TSServerState state)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpTransact::State *s = &(((HttpSM *)txnp)->t_state);
+  s->current.state = (HttpTransact::ServerState_t)state;
+}
+
+void
 TSHttpTxnDebugSet(TSHttpTxn txnp, int on)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
@@ -9649,16 +9658,16 @@ void TSCustomPropertyRemove(TSVConn connp, const char *name)
   }
 }
 
-TSCustomProperty TSCustomPropertyGet(TSVConn connp, const char *name)
+void* TSCustomPropertyGet(TSVConn connp, const char *name)
 {
-  TSCustomProperty p = 0;
+  void *p = 0;
   sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   NetVConnection *vc = (NetVConnection *)connp;
 
   if (vc != nullptr)
   {
-    p = reinterpret_cast<TSCustomProperty>(vc->getCustomProperty(name));
+    p = vc->getCustomProperty(name);
   }
 
   return p;
