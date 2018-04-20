@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  Unit tests for class CustomProperties (defined in CustomProperty.h).
 
   @section license License
 
@@ -66,7 +66,7 @@ void verify(bool condition, const char* errorMsg = "") {
 }
 
 int
-main() 
+main()
 {
   // Test expectations for addition and retrieval
   {
@@ -111,6 +111,18 @@ main()
   }
 
   verify(destroyedByMap == 3);
+
+  resetCounts();
+
+  // Test clearance
+  {
+    CustomProperties cp;
+    cp.add("a", new MyValue('a'), destroyMyValue);
+    cp.add("b", new MyValue('b'), destroyMyValue);
+    cp.add("c", new MyValue('c'), destroyMyValue);
+    cp.clear();
+    verify(destroyedByMap == 3);
+  }
 
   printf("test_CustomProperty PASSED\n");
 
